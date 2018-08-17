@@ -24,6 +24,7 @@ class QQBot:
         self.getUinAndPsessionid()
         self.fetchBuddy()
         self.fetchGroup()
+        self.fetchDiscuss()
 
     def prepareLogin(self):
         self.clientid = 53999199
@@ -189,23 +190,24 @@ class QQBot:
             self.group = tuple((group['gid'],group['name']) for group in groups)
 
             logging.info('获取群列表成功，共%d个群' %len(self.group))
-            i = 0
+            '''i = 0
             for group in groups:
                 try:
                     print(i,group)
                 except UnicodeEncodeError:
                     non_bmp_map = dict.fromkeys(range(0x10000,sys.maxunicode+1),0xfffd)
                     group['name'] = group['name'].translate(non_bmp_map)
-                    print(i,group)
-                i += 1
+                    print(group)
+                i += 1'''
                 
         else:
             raise Exception("reason='获取群列表'errInfo=" + str(result))
+        
 
     def fetchDiscuss(self):
         logging.info('登录 Step8 - 获取讨论组列表')
         Referer = 'http://d1.web2.qq.com/proxy.html?v=20151105001&callback=1&id=2'
-        self.session.update({'Referer':Referer})
+        self.session.headers.update({'Referer':Referer})
         result = self.session.get(
             url = 'http://s.web2.qq.com/api/get_discus_list?clientid=%s&psessionid=%s'
                   '&vfwebqq=%s&t=%s' %(self.clientid,self.psessionid,self.vfwebqq,repr(random.random()))
@@ -218,10 +220,78 @@ class QQBot:
         else:
             raise Exception("reason='获取讨论组列表,errInfo="+str(result))
 
+    def poll(self):
+
+        Referer = 'http://d1.web2.qq.com/proxy.html?v=20151105001&callback=1&id=2'
+        expectedCodes = (0,100003,100100,100012)
+        self.session.headers.update({'Referer':Referer,'expectedCodes':expectedCodes})
+        result = self.session.post(
+            url = 'http://d1.web2.qq.com/channel/poll2',
+            data = {
+                'r': json.dumps({
+                    'ptwebqq':self.ptwebqq,'clientid':self.clientid,
+                    'psessionid':self.psessionid,'key':''
+                })
+            }
+        ).json()
+        print('poll',result)
+
+        if result['retcode'] == 0:
+            if 'errmsg' in result:
+                return ('',0,0,'')
+            result = result['result'][0]
+            msgType = {'message':'buddy','group_message':'group','discu_message':'discuss'}[result['poll_type']]
+            msg = result['value']['from_uin']
+            from_uin = result['value']['from_uin']
+            buddy_uin = result['value'].get('send_uin',from_uin)
+            pollResult = msgType,from_uin,buddy_uin,msg
+            if msgType =='buddy':
+                logging.info('收到一条来自%s%d的消息：<%s>' %(msgType,from_uin,msg))
+            else:
+                logging.info('收到一条来自%s%d（buddy%d)消息:<%s>' %pollResult)
+            return pollResult
+        else:
+            raise Exception('errInfo=<%s>' % result)
+
+
+    def PollForever(self):
+        logging.info('QQBot已启动，请用其他QQ号码向本QQ %s<%d> 发送命令来操作QQBot。%s' % \
+                     (self.nick,self.qq,self.helpInfo)
+        )
+        self.stopped = False
+        while not self.stopped:
+            time.sleep(0.2)
+            pullResult = self.poll()
+            try:
+                print('pullResult',pullResult)
+                #self.onPollComplete(*pullResult)
+            except Exception:
+                logging.info(' onPollComplete函数出现错误，已忽略',exc_info=True)
+        logging.info('QQBot已停止')
+
+    def onPollComplete(self,msgType,from_uin,buddy_uin,message):
+        targets = ('buddy','group','discuss')
+        reply = ''
+        if message == '-help':
+            reply = '欢迎使用QQBot，使用方法：\r\n' + \
+                    '      -help\r\n' + \
+                    '      -list buddy|group|discuss\r\n' + \
+                    '      -send buddy/group/discuss uin message\r\n' + \
+                    '      -stop'
+        elif message[:6] == '-list':
+            target = message[6:].strip()
+            reply = getattr(self,target+'Str','')
+        elif message[:6] == '-send':
+            args = message[6:].split(' ',2)
+            if len(args) == 3 and args[0] in targets and args[1].isdigit():
+                reply = self.send(args[0],int(args[1]),args[2].strip())
+        elif message == '-stop':
+            self.stopped = True
+            reply = 'QQBot 已停止'
+        self.sendLongMsg(msgType,from_uin,reply)
         
             
-                               
-        
+
 def qHash(x,K):
     N = [0] * 4
     for T in range(len(K)):
@@ -251,50 +321,23 @@ def bknHash(skey, init_str=5381):
     hash_str = int(hash_str & 2147483647)
     return hash_str
 
+def utf8Partition(msg,n):
+    if n >=len(msg):
+        return msg,''
+
+    while n > 0:
+        ch = ord(msg[n])
+        if (ch>>7 == 0) or (ch >> 6 ==3):
+            break
+        n -=1
+    return msg[:n],msg[n:]
+
 if __name__ == '__main__':
     qqbot = QQBot()
     qqbot.Login()
+    qqbot.PollForever()
+
         
-
-
-
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
