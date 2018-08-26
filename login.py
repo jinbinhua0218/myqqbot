@@ -7,11 +7,11 @@ import logging; logging.basicConfig(level=logging.INFO)
 import json
 import sys
 import pickle
+import threading
 
 from io import BytesIO
 from PIL import Image
 
-from qqbot.qrcodemanager import QrcodeManager
 from qqbot.utf8logger import CRITICAL, ERROR, WARN, INFO, DEBUG
 from qqbot.utf8logger import DisableLog, EnableLog
 from qqbot.common import PY3, Partition, JsonLoads, JsonDumps,StartDaemonThread
@@ -244,6 +244,7 @@ class QQBot_Login:
             raise Exception("reason='获取讨论组列表,errInfo="+str(result))
 
     def TestLogin(self):
+        print('TestLogin',self.session.verify)
         if not self.session.verify:
             disableInsecureRequestWarning()
         try:
@@ -310,7 +311,7 @@ class QQBot_Login:
                 nCE += 1
                 errorInfo = '网络错误 %s' % e
             else:
-                html = resp.content if not PY3 else resp.content.decode('utf8')                    
+                html =resp.content.decode('utf8')                    
                 if resp.status_code in (502, 504, 404):
                     self.session.get(
                         ('http://pinghot.qq.com/pingd?dm=w.qq.com.hot&'
@@ -368,19 +369,19 @@ class QQBot_Login:
                 raise RequestError
 
     def Poll(self):
+        
         try:
-            result = self.smartRequest(
+            Referer = 'http://d1.web2.qq.com/proxy.html?v=20151105001&callback=1&id=2'
+            self.session.headers.update({'Referer':Referer})
+            result = self.session.post(
                 url = 'https://d1.web2.qq.com/channel/poll2',
                 data = {
-                    'r': JsonDumps({
+                    'r': json.dumps({
                         'ptwebqq':self.ptwebqq, 'clientid':self.clientid,
                         'psessionid':self.psessionid, 'key':''
                     })
-                },
-                Referer = ('http://d1.web2.qq.com/proxy.html?v=20151105001&'
-                           'callback=1&id=2'),
-                expectedCodes = (0, 100003, 100100, 100012)
-            )
+                }
+            ).json()
             # "{'retcode': 0, 'retmsg': 'ok', 'errmsg': 'error'}"
             print(result)
             if type(result) is dict and \
@@ -438,7 +439,6 @@ def qHash(x,K):
     for aU1 in U1:
         V1 += N1[((aU1 >> 4) & 15)]
         V1 += N1[((aU1 >> 0) & 15)]
-
     return V1
     
         
@@ -449,21 +449,11 @@ def bknHash(skey, init_str=5381):
     hash_str = int(hash_str & 2147483647)
     return hash_str
 
-def utf8Partition(msg,n):
-    if n >=len(msg):
-        return msg,''
-
-    while n > 0:
-        ch = ord(msg[n])
-        if (ch>>7 == 0) or (ch >> 6 ==3):
-            break
-        n -=1
-    return msg[:n],msg[n:]
-
-
 if __name__ == '__main__':
     qqbot = QQBot_Login()
     qqbot.Login()
+
+
 
 
         
