@@ -2,21 +2,22 @@
 
 #https://blog.csdn.net/hello_world_zhou/article/details/54782980
 
-import requests,random,os,time
-import logging; logging.basicConfig(level=logging.INFO)
+import requests,random,os,sys,time
+p = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if p not in sys.path:
+    sys.path.insert(0, p)
+    
+import logging; 
 import json
-import sys
 import pickle
 import threading
-
 from io import BytesIO
 from PIL import Image
 
-from qqbot.utf8logger import CRITICAL, ERROR, WARN, INFO, DEBUG
 from qqbot.utf8logger import DisableLog, EnableLog
-from qqbot.common import PY3, Partition, JsonLoads, JsonDumps,StartDaemonThread
-from qqbot.facemap import FaceParse, FaceReverseParse
 from qqbot.mainloop import Put
+
+logging.basicConfig(level=logging.INFO)
 
 def disableInsecureRequestWarning():
     try:
@@ -26,7 +27,7 @@ def disableInsecureRequestWarning():
             import urllib3    
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     except Exception as e:
-        ERROR('无法禁用 InsecureRequestWarning ，原因：%s', e)
+        logging.error('无法禁用 InsecureRequestWarning ，原因：%s', e)
 
 
 class RequestError(Exception):
@@ -263,7 +264,7 @@ class QQBot_Login:
         finally:
             EnableLog()
         
-        INFO('登录成功。登录账号：%s(%s)', self.nick, self.qq)
+        logging.info('登录成功。登录账号：%s(%s)', self.nick, self.qq)
 
 
     def urlGet(self, url, data=None, Referer=None, Origin=None):
@@ -280,7 +281,7 @@ class QQBot_Login:
             # by @staugur, @pandolia
             if self.session.verify:
                 time.sleep(5)
-                ERROR('无法和腾讯服务器建立私密连接，'
+                logging.error('无法和腾讯服务器建立私密连接，'
                       ' 5 秒后将尝试使用非私密连接和腾讯服务器通讯。'
                       '若您不希望使用非私密连接，请按 Ctrl+C 退出本程序。')
                 try:
@@ -288,7 +289,7 @@ class QQBot_Login:
                 except KeyboardInterrupt:
                     Put(sys.exit, 0)
                     sys.exit(0)
-                WARN('开始尝试使用非私密连接和腾讯服务器通讯。')
+                logging.warning('开始尝试使用非私密连接和腾讯服务器通讯。')
                 self.session.verify = False
                 disableInsecureRequestWarning()
                 return self.urlGet(url, data, Referer, Origin)
@@ -324,7 +325,7 @@ class QQBot_Login:
                     errorInfo = '超时'
                 else:
                     try:
-                        rst = JsonLoads(html)
+                        rst = json.loads(html)
                     except ValueError:
                         nUE += 1
                         errorInfo = ' URL 地址错误'
@@ -358,13 +359,13 @@ class QQBot_Login:
             # 出现网络错误、超时、 URL 地址错误可以多试几次 
             # 若网络没有问题但 retcode 有误，一般连续 3 次都出错就没必要再试了
             if nCE < 5 and nTO < 20 and nUE < 5 and nDE <= repeatOnDeny:
-                DEBUG('第%d次请求“%s”时出现 %s，html=%s',
+                logging.debug('第%d次请求“%s”时出现 %s，html=%s',
                       n, url.split('?', 1)[0], errorInfo, repr(html))
                 time.sleep(0.5)
             elif nTO == 20 and timeoutRetVal: # by @killerhack
                 return timeoutRetVal
             else:
-                ERROR('第%d次请求“%s”时出现 %s, html=%s',
+                logging.error('第%d次请求“%s”时出现 %s, html=%s',
                       n, url.split('?', 1)[0], errorInfo, repr(html))
                 raise RequestError
 
@@ -387,14 +388,14 @@ class QQBot_Login:
             if type(result) is dict and \
                     result.get('retcode', 1) == 0 and \
                     result.get('errmsg', '') == 'error':
-                DEBUG(result)
+                logging.debug(result)
                 raise RequestError
         except RequestError:
-            ERROR('接收消息出错，开始测试登录 cookie 是否过期...')
+            logging.error('接收消息出错，开始测试登录 cookie 是否过期...')
             return 'timeout', '', '', ''
         else:
             if (not result) or (not isinstance(result, list)):
-                DEBUG(result)
+                logging.debug(result)
                 return 'timeout', '', '', ''
             else:
                 result = result[0]
@@ -405,7 +406,7 @@ class QQBot_Login:
                 }[result['poll_type']]
                 fromUin = str(result['value']['from_uin'])
                 memberUin = str(result['value'].get('send_uin', ''))
-                content = FaceReverseParse(result['value']['content'])
+                content = result['value']['content']
                 return ctype, fromUin, memberUin, content
             
     def Copy(self):

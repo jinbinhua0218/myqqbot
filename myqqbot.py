@@ -2,11 +2,13 @@
 
 #https://blog.csdn.net/hello_world_zhou/article/details/54782980
 
-import logging; logging.basicConfig(level=logging.INFO)
+import logging
 import sys
 import threading
 
 from login import QLogin
+
+logging.basicConfig(level=logging.INFO)
 
 
 class QQBot:
@@ -59,9 +61,7 @@ class QQBot:
 if __name__ == '__main__':
     
     qqbot = QQBot()
-    print('before')
     qqbot.Login()
-    print('after')
     qqbot.Run()
 
 
