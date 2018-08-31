@@ -15,7 +15,6 @@ from io import BytesIO
 from PIL import Image
 
 from qqbot.utf8logger import DisableLog, EnableLog
-from qqbot.mainloop import Put
 
 logging.basicConfig(level=logging.INFO)
 
@@ -52,6 +51,7 @@ class QQBot_Login:
 
     def prepareLogin(self):
         self.clientid = 53999199
+        self.msgId = 6000000
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent':('Mozilla/5.0 (Macintosh;Intel Mac OS X 10.9;'
@@ -250,124 +250,19 @@ class QQBot_Login:
             disableInsecureRequestWarning()
         try:
             DisableLog()
+            Referer = 'http://d1.web2.qq.com/proxy.html?v=20151105001&callback=1&id=2'
+            Origin  = 'http://d1.web2.qq.com'
             # 请求一下 get_online_buddies 页面，避免103错误。
             # 若请求无错误发生，则表明登录成功
-            self.smartRequest(
-                url = ('http://d1.web2.qq.com/channel/get_online_buddies2?'
-                       'vfwebqq=%s&clientid=%d&psessionid=%s&t={rand}') %
-                      (self.vfwebqq, self.clientid, self.psessionid),
-                Referer = ('http://d1.web2.qq.com/proxy.html?v=20151105001&'
-                           'callback=1&id=2'),
-                Origin = 'http://d1.web2.qq.com',
-                repeatOnDeny = 0
+            self.session.get(
+                url = 'http://d1.web2.qq.com/channel/get_online_buddies2?'
+                       'vfwebqq=%s&clientid=%d&psessionid=%s&t=%s' %
+                    (self.vfwebqq, self.clientid, self.psessionid,repr(random.random()))
             )
         finally:
             EnableLog()
         
         logging.info('登录成功。登录账号：%s(%s)', self.nick, self.qq)
-
-
-    def urlGet(self, url, data=None, Referer=None, Origin=None):
-        Referer and self.session.headers.update( {'Referer': Referer} )
-        Origin and self.session.headers.update( {'Origin': Origin} )
-        timeout = 30 if url != 'https://d1.web2.qq.com/channel/poll2' else 120
-            
-        try:
-            if data is None:
-                return self.session.get(url, timeout=timeout)
-            else:
-                return self.session.post(url, data=data, timeout=timeout)
-        except (requests.exceptions.SSLError, AttributeError):
-            # by @staugur, @pandolia
-            if self.session.verify:
-                time.sleep(5)
-                logging.error('无法和腾讯服务器建立私密连接，'
-                      ' 5 秒后将尝试使用非私密连接和腾讯服务器通讯。'
-                      '若您不希望使用非私密连接，请按 Ctrl+C 退出本程序。')
-                try:
-                    time.sleep(5)
-                except KeyboardInterrupt:
-                    Put(sys.exit, 0)
-                    sys.exit(0)
-                logging.warning('开始尝试使用非私密连接和腾讯服务器通讯。')
-                self.session.verify = False
-                disableInsecureRequestWarning()
-                return self.urlGet(url, data, Referer, Origin)
-            else:
-                raise
-
-
-    def smartRequest(self, url, data=None, Referer=None, Origin=None,
-                     expectedCodes=(0,100003,100100), expectedKey=None,
-                     timeoutRetVal=None, repeatOnDeny=2):
-        nCE, nTO, nUE, nDE = 0, 0, 0, 0
-        while True:
-            url = url.format(rand=repr(random.random()))
-            html = ''
-            errorInfo = ''
-            try:
-                resp = self.urlGet(url, data, Referer, Origin)
-            except (requests.ConnectionError,
-                    requests.exceptions.ReadTimeout) as e:
-                nCE += 1
-                errorInfo = '网络错误 %s' % e
-            else:
-                html =resp.content.decode('utf8')                    
-                if resp.status_code in (502, 504, 404):
-                    self.session.get(
-                        ('http://pinghot.qq.com/pingd?dm=w.qq.com.hot&'
-                         'url=/&hottag=smartqq.im.polltimeout&hotx=9999&'
-                         'hoty=9999&rand=%s') % random.randint(10000, 99999)
-                    )
-                    if url == 'https://d1.web2.qq.com/channel/poll2':
-                        return {'errmsg': ''}
-                    nTO += 1
-                    errorInfo = '超时'
-                else:
-                    try:
-                        rst = json.loads(html)
-                    except ValueError:
-                        nUE += 1
-                        errorInfo = ' URL 地址错误'
-                    else:
-                        result = rst.get('result', rst)
-                        
-                        if expectedKey:
-                            if expectedKey in result:
-                                return result
-                        else:                        
-                            if 'retcode' in rst:
-                                retcode = rst['retcode']
-                            elif 'errCode' in rst:
-                                retcode = rst['errCode']
-                            elif 'ec' in rst:
-                                retcode = rst['ec']
-                            else:
-                                retcode = -1
-    
-                            if (retcode in expectedCodes):
-                                return result
-
-                        nDE += 1
-                        errorInfo = '请求被拒绝错误'
-            
-            n = nCE + nTO + nUE+ nDE
-            
-            if len(html) > 40:
-                html = html[:20] + '...' + html[-20:]
-
-            # 出现网络错误、超时、 URL 地址错误可以多试几次 
-            # 若网络没有问题但 retcode 有误，一般连续 3 次都出错就没必要再试了
-            if nCE < 5 and nTO < 20 and nUE < 5 and nDE <= repeatOnDeny:
-                logging.debug('第%d次请求“%s”时出现 %s，html=%s',
-                      n, url.split('?', 1)[0], errorInfo, repr(html))
-                time.sleep(0.5)
-            elif nTO == 20 and timeoutRetVal: # by @killerhack
-                return timeoutRetVal
-            else:
-                logging.error('第%d次请求“%s”时出现 %s, html=%s',
-                      n, url.split('?', 1)[0], errorInfo, repr(html))
-                raise RequestError
 
     def Poll(self):
         
@@ -384,7 +279,6 @@ class QQBot_Login:
                 }
             ).json()
             # "{'retcode': 0, 'retmsg': 'ok', 'errmsg': 'error'}"
-            print(result)
             if type(result) is dict and \
                     result.get('retcode', 1) == 0 and \
                     result.get('errmsg', '') == 'error':
@@ -394,11 +288,11 @@ class QQBot_Login:
             logging.error('接收消息出错，开始测试登录 cookie 是否过期...')
             return 'timeout', '', '', ''
         else:
-            if (not result) or (not isinstance(result, list)):
+            if (not result) or (not isinstance(result, dict)):
                 logging.debug(result)
                 return 'timeout', '', '', ''
             else:
-                result = result[0]
+                result = result['result'][0]
                 ctype = {
                     'message': 'buddy',
                     'group_message': 'group',
@@ -406,8 +300,44 @@ class QQBot_Login:
                 }[result['poll_type']]
                 fromUin = str(result['value']['from_uin'])
                 memberUin = str(result['value'].get('send_uin', ''))
-                content = result['value']['content']
+                content = result['value']['content'][1]
+                '''print('fromUin ', fromUin)
+                print('memberUin ', memberUin)
+                print('content ', content)'''
                 return ctype, fromUin, memberUin, content
+
+    def send(self,ctype,fromUin,membUin,content):
+
+        touin = membUin if membUin is True else fromUin
+        #发出去的信息要进行转化，待定
+        sendmsg = content
+        self.msgId += 1
+        sendUrl = {
+            'buddy':'http://d1.web2.qq.com/channel/send_buddy_msg2',
+            'group_message':'http://d1.web2.qq.com/channel/send_qun_msg2',
+            'discu_message':'http://d1.web2.qq.com/channel/send_discu_msg2'
+        }
+        sendTag = {'buddy':'to','group_message':'group_uin','discu_message':'did'}
+        self.session.post(
+            url = sendUrl[ctype],
+            data = {
+                'r':json.dumps({
+                    sendTag[ctype]:int(touin),
+                    'content':json.dumps(
+                        [sendmsg,['font',{'name':'宋体','size':10,
+                                          'style':[0,0,0],'color':'000000'}]]
+                    ),
+                    'face':522,
+                    'clientid':self.clientid,
+                    'msg_id': self.msgId,
+                    'psessionid': self.psessionid
+                })
+            }
+        )
+        logging.info('已发送，但不知道是否成功')
+            
+                
+            
             
     def Copy(self):
         c = self.__class__()
@@ -441,8 +371,7 @@ def qHash(x,K):
         V1 += N1[((aU1 >> 4) & 15)]
         V1 += N1[((aU1 >> 0) & 15)]
     return V1
-    
-        
+            
 def bknHash(skey, init_str=5381):
     hash_str = init_str
     for i in skey:

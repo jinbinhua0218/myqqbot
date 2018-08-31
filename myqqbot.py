@@ -17,6 +17,7 @@ class QQBot:
         self.session = QLogin()
         #child thread 1
         self.poll = self.session.Poll
+        self.send = self.session.send
 
     def Run(self):
         #StartDaemonThread(self.pollForever)
@@ -32,30 +33,35 @@ class QQBot:
             except:
                 print('qsession.Poll 方法出错')
                 break
-            '''else:
-                Put(self.onPollComplete, *result)
+            else:
+                self.onPollComplete(*result)
 
     def onPollComplete(self, ctype, fromUin, membUin, content):
         if ctype == 'timeout':
             return
+        #发送者是自己就不回复(1545055584)
+        if fromUin == '1545055584':
+            return 
+        print('ctype ', ctype)
+        print('fromUin ', fromUin)
+        print('memberUin ', membUin)
+        print('content ', content)
 
-        contact, member, nameInGroup = \
-            self.findSender(ctype, fromUin, membUin, self.conf.qq, content)
-        
-        if contact.ctype == 'group' and member == 'SYSTEM-MESSAGE':
-            INFO('来自 %s 的系统消息： "%s"', contact, content)
-            return
-
-        if self.detectAtMe(nameInGroup, content):
-            INFO('有人 @ 我：%s[%s]' % (contact, member))
-            content = '[@ME] ' + content.replace('@'+nameInGroup, '')
-        else:
-            content = content.replace('@ME', '@Me')
-                
+        #个人消息
         if ctype == 'buddy':
-            INFO('来自 %s 的消息: "%s"' % (contact, content))
+            logging.info('来自%s(uin)的消息: %s' %(fromUin,content))
+        #群消息，但没写完
+        elif ctype == 'group_message' and  True == True:
+            logging.info('来自%s[%s](uin)的消息:%s' %(fromUin,membUin,content))
+        #系统消息，但没写完
+        elif ctype == 'group_message' and True == True:
+            logging.info('来自%s(uin)的系统消息: %s' %(fromUin,content))
+        #讨论组消息
+        elif ctype =='discu_message':
+            logging.info('来自%s[%s](uin)的消息:%s' %(fromUin,membUin,content))
         else:
-            INFO('来自 %s[%s] 的消息: "%s"' % (contact, member, content))'''
+            print('发生了什么？谁发了什么消息？')
+        self.send(ctype,fromUin,membUin,content)
 
 
 if __name__ == '__main__':
@@ -63,6 +69,17 @@ if __name__ == '__main__':
     qqbot = QQBot()
     qqbot.Login()
     qqbot.Run()
+
+
+
+
+
+
+
+
+
+
+    
 
 
         
