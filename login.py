@@ -7,16 +7,13 @@ p = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if p not in sys.path:
     sys.path.insert(0, p)
     
-import logging; 
+import logging; logging.basicConfig(level=logging.INFO)
 import json
 import pickle
 import threading
 from io import BytesIO
 from PIL import Image
 
-from qqbot.utf8logger import DisableLog, EnableLog
-
-logging.basicConfig(level=logging.INFO)
 
 def disableInsecureRequestWarning():
     try:
@@ -249,7 +246,7 @@ class QQBot_Login:
         if not self.session.verify:
             disableInsecureRequestWarning()
         try:
-            DisableLog()
+            #DisableLog()
             Referer = 'http://d1.web2.qq.com/proxy.html?v=20151105001&callback=1&id=2'
             Origin  = 'http://d1.web2.qq.com'
             # 请求一下 get_online_buddies 页面，避免103错误。
@@ -259,9 +256,8 @@ class QQBot_Login:
                        'vfwebqq=%s&clientid=%d&psessionid=%s&t=%s' %
                     (self.vfwebqq, self.clientid, self.psessionid,repr(random.random()))
             )
-        finally:
-            EnableLog()
-        
+        except:
+            print('TestLogin cant work')
         logging.info('登录成功。登录账号：%s(%s)', self.nick, self.qq)
 
     def Poll(self):
