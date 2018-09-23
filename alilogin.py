@@ -16,6 +16,7 @@ class ali_Login:
         self.prepareLogin()
         self.getQrcode()
         self.waitForAuth()
+        self.transfer_link()
 
     def prepareLogin(self):
 
@@ -40,7 +41,7 @@ class ali_Login:
         ksTS_time = time.time()
         _ksTS='%s_%s' %(int(ksTS_time*1000),str(ksTS_time)[-3:])
         callback='jsonp%s' %(int(str(ksTS_time)[-3:])+1)
-        print(_ksTS,callback)
+        #print(_ksTS,callback)
             
         result = self.session.get(
             url = 'https://qrlogin.taobao.com/qrcodelogin/qrcodeLoginCheck.do?' +
@@ -56,14 +57,13 @@ class ali_Login:
         logging.info('获取二维码')
         result = self.session.get('https://qrlogin.taobao.com/qrcodelogin/generateQRCode4Login.do'
                                   ).json()
-        print(result)
+        #print(result)
         
         #获取lgToken、adToken、二维码的url
         self.lgToken = result['lgToken']
         self.adToken = result['adToken']
         qr_url = 'https:'+result['url']
-        print('qr_url....', qr_url)
-        
+
         qrcode = self.session.get(qr_url).content
         self.im = Image.open(BytesIO(qrcode))
         self.im.show()
@@ -85,20 +85,24 @@ class ali_Login:
             elif '"code":"10006"'in authStatus:
                 logging.info('登录成功，正在跳转')
                 items = authStatus.split(',')          
-                qr2_url = items[-1].split('"')[3]
-                print('qr2.........',qr2_url)
+                lg_url = items[-1].split('"')[3]
                 break
             else:
                 logging.info('未知错误，退出执行')
                 sys.exit(0)
                 
         #登录成功后操作
-        result = self.session.get(url=qr2_url)
+        result = self.session.get(url=lg_url)
+        '''print('lg_url   ',  lg_url)
         print('url ', result.url)
-        print('cookies ', result.cookies)
-        print(result.cookies.keys())
+        print('cookies ', self.session.cookies)'''
 
-        print('headers ', result.headers)
+    def transfer_link(self):
+        url = 'https://pub.alimama.com/myunion.htm?spm=a219t.7900221/1.1998910419.dd403b0ca.2a8f75a5D7A2BE'
+        result = self.session.get(url=url)
+        print('result.url  ', result.url)
+        print(result.text)
+        
 
                              
 if __name__ == '__main__':
